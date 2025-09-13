@@ -1,78 +1,158 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
+  <meta charset="utf-8" />
   <title>Tilapia Weight Dashboard</title>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
   <style>
     body {
-      font-family: sans-serif;
+      font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
       margin: 20px;
+      background: #f7f7f7;
     }
-    .chart-container {
-      margin-bottom: 40px;
+    h1 {
+      margin-bottom: 20px;
+    }
+    #error {
+      color: #b00020;
+      margin-bottom: 12px;
+    }
+
+    /* Grid layout: 2 charts per row */
+    #charts {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 16px;
+    }
+
+    .chart-card {
+      min-height: 200px;
+      padding: 12px;
+      border-radius: 8px;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+      display: flex;
+      flex-direction: column;
+      background: #fff;
+    }
+
+    .chart-card h2 {
+      font-size: 16px;
+      margin: 0 0 8px 0;
+    }
+
+    .canvas-wrap {
+      flex: 1 1 auto;
+      position: relative;
+    }
+
+    canvas {
+      width: 100% !important;
+      height: 100% !important;
+    }
+
+    footer {
+      margin-top: 20px;
+      color: #666;
+      font-size: 13px;
     }
   </style>
 </head>
 <body>
   <h1>Average Fish Weight per Cage</h1>
+  <div id="error" role="alert" aria-live="polite"></div>
   <div id="charts"></div>
+  <footer>Tip: open DevTools → Console / Network to see any load errors.</footer>
 
   <script>
-    fetch('data.json')
-      .then(response => response.json())
-      .then(data => {
-        const chartsDiv = document.getElementById('charts');
+    // Generate a distinct color per cage
+    function getColor(index, total) {
+      const hue = (index / total) * 360;
+      return `hsl(${hue}, 70%, 50%)`;
+    }
 
-        Object.entries(data.cages).forEach(([cageName, cageData]) => {
-          // Create container
-          const container = document.createElement('div');
-          container.className = 'chart-container';
+    async function loadData() {
+      try {
+        const res = await fetch('data.json', { cache: 'no-store' });
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        const j = await res.json();
+        if (!j || !j.cages) throw new Error('data.json missing "cages" property');
+        return j;
+      } catch (err) {
+        console.error('Failed to load data.json', err);
+        document.getElementById('error').textContent = 'Error: could not fetch data.json. Check console for details.';
+        return null;
+      }
+    }
 
-          // Add title
-          const title = document.createElement('h2');
-          title.textContent = cageName;
-          container.appendChild(title);
+    function createChartCard(container, cageName, cageData, color) {
+      const card = document.createElement('div');
+      card.className = 'chart-card';
 
-          // Add canvas
-          const canvas = document.createElement('canvas');
-          container.appendChild(canvas);
+      const title = document.createElement('h2');
+      title.textContent = cageName;
+      card.appendChild(title);
 
-          chartsDiv.appendChild(container);
+      const wrap = document.createElement('div');
+      wrap.className = 'canvas-wrap';
+      const canvas = document.createElement('canvas');
+      wrap.appendChild(canvas);
+      card.appendChild(wrap);
+      container.appendChild(card);
 
-          // Render chart
-          new Chart(canvas, {
-            type: 'line',
-            data: {
-              labels: cageData.dates,
-              datasets: [{
-                label: 'Avg Weight (g)',
-                data: cageData.weights,
-                borderColor: 'blue',
-                backgroundColor: 'rgba(0, 0, 255, 0.1)',
-                fill: true
-              }]
-            },
-            options: {
-              responsive: true,
-              scales: {
-                y: {
-                  title: {
-                    display: true,
-                    text: 'Weight (g)'
-                  }
-                },
-                x: {
-                  title: {
-                    display: true,
-                    text: 'Date'
-                  }
-                }
-              }
-            }
-          });
-        });
+      const ctx = canvas.getContext('2d');
+
+      new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: cageData.dates,
+          datasets: [{
+            label: 'Avg weight (g)',
+            data: cageData.weights,
+            fill: true,
+            tension: 0.2,
+            borderWidth: 1.5,
+            pointRadius: 2,
+            borderColor: color,
+            backgroundColor: color + '33'
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          scales: {
+            x: { title: { display: true, text: 'Date' } },
+            y: { title: { display: true, text: 'Weight (g)' }, beginAtZero: false }
+          },
+          plugins: { legend: { display: false } }
+        }
       });
+    }
+
+    (async function init() {
+      if (typeof Chart === 'undefined') {
+        document.getElementById('error').textContent = 'Chart.js did not load.';
+        return;
+      }
+
+      const data = await loadData();
+      if (!data) return;
+
+      const chartsDiv = document.getElementById('charts');
+      const cageNames = Object.keys(data.cages);
+
+      if (cageNames.length === 0) {
+        document.getElementById('error').textContent = 'No cage data found in data.json.';
+        return;
+      }
+
+      cageNames.forEach((cageName, i) => {
+        const cageData = data.cages[cageName];
+        if (!Array.isArray(cageData.dates) || !Array.isArray(cageData.weights)) return;
+        const color = getColor(i, cageNames.length);
+        createChartCard(chartsDiv, cageName, cageData, color);
+      });
+    })();
   </script>
 </body>
 </html>
