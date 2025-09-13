@@ -2,31 +2,78 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>My Dashboard</title>
+  <title>Tilapia Weight Dashboard</title>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    body {
+      font-family: sans-serif;
+      margin: 20px;
+    }
+    .chart-container {
+      margin-bottom: 40px;
+    }
+  </style>
 </head>
 <body>
-  <h1>Daily Values Dashboard</h1>
-  <canvas id="myChart" width="400" height="200"></canvas>
+  <h1>Average Fish Weight per Cage</h1>
+  <div id="charts"></div>
 
   <script>
     fetch('data.json')
       .then(response => response.json())
       .then(data => {
-        const ctx = document.getElementById('myChart');
-        new Chart(ctx, {
-          type: 'line',
-          data: {
-            labels: data.dates,
-            datasets: [{
-              label: 'My Values',
-              data: data.values,
-              borderColor: 'blue',
-              fill: false
-            }]
-          }
+        const chartsDiv = document.getElementById('charts');
+
+        Object.entries(data.cages).forEach(([cageName, cageData]) => {
+          // Create container
+          const container = document.createElement('div');
+          container.className = 'chart-container';
+
+          // Add title
+          const title = document.createElement('h2');
+          title.textContent = cageName;
+          container.appendChild(title);
+
+          // Add canvas
+          const canvas = document.createElement('canvas');
+          container.appendChild(canvas);
+
+          chartsDiv.appendChild(container);
+
+          // Render chart
+          new Chart(canvas, {
+            type: 'line',
+            data: {
+              labels: cageData.dates,
+              datasets: [{
+                label: 'Avg Weight (g)',
+                data: cageData.weights,
+                borderColor: 'blue',
+                backgroundColor: 'rgba(0, 0, 255, 0.1)',
+                fill: true
+              }]
+            },
+            options: {
+              responsive: true,
+              scales: {
+                y: {
+                  title: {
+                    display: true,
+                    text: 'Weight (g)'
+                  }
+                },
+                x: {
+                  title: {
+                    display: true,
+                    text: 'Date'
+                  }
+                }
+              }
+            }
+          });
         });
       });
   </script>
 </body>
 </html>
+
